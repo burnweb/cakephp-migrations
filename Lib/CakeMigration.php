@@ -245,11 +245,35 @@ class CakeMigration extends CakeObject {
 				return false;
 			}
 		} catch (Exception $e) {
-			$this->db->rollback($null);
+			$this->_endTransaction('rollback', $null);
 			throw $e;
 		}
 
-		return $this->db->commit($null);
+		return $this->_endTransaction('commit', $null);
+	}
+
+/**
+ * Commits or rolls back the migration transaction.
+ *
+ * MySQL commits implicitly on DDL statements (CREATE/ALTER/DROP TABLE), which ends the
+ * transaction. Since PHP 8.0 PDO throws "There is no active transaction" when
+ * commit()/rollback() is called afterwards, instead of silently returning false.
+ * That specific case is expected here and is ignored.
+ *
+ * @param string $method Either `commit` or `rollback`
+ * @param null $null Unused, kept for the DboSource signature
+ * @return bool
+ * @throws PDOException When the failure is not the missing transaction
+ */
+	protected function _endTransaction($method, &$null) {
+		try {
+			return $this->db->{$method}($null);
+		} catch (PDOException $e) {
+			if (stripos($e->getMessage(), 'no active transaction') === false) {
+				throw $e;
+			}
+			return true;
+		}
 	}
 
 /**
